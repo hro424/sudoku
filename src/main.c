@@ -21,6 +21,12 @@ struct cell {
 	uint16_t bitmap;
 };
 
+#define SQUARE(n)           ((n) * (n))
+#define BOX_EDGE_LENGTH     3
+#define BOX_SIZE            SQUARE(BOX_EDGE_LENGTH)
+#define BOARD_EDGE_LENGTH   (BOX_EDGE_LENGTH * 3)
+#define BOARD_SIZE          SQUARE(BOARD_EDGE_LENGTH)
+
 struct board {
 	struct cell cells[81];
 };
@@ -183,6 +189,40 @@ scan(struct board *b)
 			//dump(b);
 		}
 	}
+}
+
+void
+make_yfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
+{
+    uint16_t tmp[3];
+
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            struct cell *c = get_cell(b, x_base, y_base, x, y);
+            tmp[y] &= c->bitmap;
+        }
+    }
+
+    filter[0] = tmp[0] & ~tmp[1] & ~tmp[2];
+    filter[1] = tmp[1] & ~tmp[0] & ~tmp[2];
+    filter[2] = tmp[2] & ~tmp[0] & ~tmp[1];
+}
+
+void
+make_xfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
+{
+    uint16_t tmp[3];
+
+    for (int x = 0; x < 3; x++) {
+        for (int y = 0; y < 3; y++) {
+            struct cell *c = get_cell(b, x_base, y_base, x, y);
+            tmp[x] &= c->bitmap;
+        }
+    }
+
+    filter[0] = tmp[0] & ~tmp[1] & ~tmp[2];
+    filter[1] = tmp[1] & ~tmp[0] & ~tmp[2];
+    filter[2] = tmp[2] & ~tmp[0] & ~tmp[1];
 }
 
 /*
