@@ -5,7 +5,19 @@
 #include <string.h>
 
 struct cell {
+    /* holds a number.
+     * 0   -- not solved yet
+     * 1-9 -- solved
+     */
 	int num;
+
+    /* holds candidates.
+     * bit position + 1 indicates the number.
+     *
+     * Each bit holds one of the following two states:
+     *   0 -- the number is never set in this cell.
+     *   1 -- the number may be set in this cell.
+     */
 	uint16_t bitmap;
 };
 
@@ -13,30 +25,53 @@ struct board {
 	struct cell cells[81];
 };
 
+/**
+ * Sets the specific number to the cell.
+ *
+ * @param c     the cell
+ * @param num   the number between 1 and 9
+ */
 void
 cell_set(struct cell *c, int num)
 {
-	if (num > 0) {
+	if (c != NULL && 0 < num && num <= 9) {
 		c->num = num;
 		c->bitmap = 1 << (num - 1);
 	}
 }
 
+/**
+ * Initializes the cell.
+ * The initial state of a cell may take any number between 1 and 9.
+ *
+ * @param c     the cell
+ */
 void
 cell_clear(struct cell *c)
 {
-	c->num = 0;
-	c->bitmap = (1 << 9) - 1;
+    if (c != NULL) {
+        c->num = 0;
+        c->bitmap = (1 << 9) - 1;
+    }
 }
 
+/**
+ * Removes the candidates of the cell which are also in the other cell.
+ *
+ * @param c     the cell
+ * @param ref   the other cell
+ */
 void
 cell_unset(struct cell *c, struct cell *ref)
 {
-	if (c != ref) {
+	if (c != NULL && ref != NULL & c != ref) {
 		c->bitmap &= ~ref->bitmap;
 	}
 }
 
+/**
+ * Counts the number of 1-bits in the bitmap.
+ */
 static int
 numbits(uint16_t bitmap)
 {
@@ -47,12 +82,18 @@ numbits(uint16_t bitmap)
 	return num;
 }
 
+/**
+ * Counts the number of candidates.
+ */
 int
 cell_candidates(struct cell *c)
 {
 	return numbits(c->bitmap);
 }
 
+/**
+ * Set the smallest candidate of the bitmap to the cell.
+ */
 void
 cell_autoset(struct cell *c)
 {
