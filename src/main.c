@@ -24,7 +24,8 @@ struct cell {
 #define SQUARE(n)           ((n) * (n))
 #define BOX_EDGE_LENGTH     3
 #define BOX_SIZE            SQUARE(BOX_EDGE_LENGTH)
-#define BOARD_EDGE_LENGTH   (BOX_EDGE_LENGTH * 3)
+#define BOARD_BOX_NUMBER    3
+#define BOARD_EDGE_LENGTH   (BOX_EDGE_LENGTH * BOARD_BOX_NUMBER)
 #define BOARD_SIZE          SQUARE(BOARD_EDGE_LENGTH)
 
 struct board {
@@ -110,7 +111,6 @@ cell_autoset(struct cell *c)
 	}
 }
 
-
 void
 dump(struct board *b)
 {
@@ -175,23 +175,6 @@ unset_box(struct board *b, struct cell *c, int x_axis, int y_axis)
 }
 
 void
-scan(struct board *b)
-{
-	for (int y = 0; y < 9; y++) {
-		for (int x = 0; x < 9; x++) {
-			struct cell *c = get_cell(b, 0, 0, x, y);
-			unset_horizontal(b, c, y);
-			unset_vertical(b, c, x);
-			//printf("after v/h\n");
-			//dump(b);
-			unset_box(b, c, x, y);
-			//printf("after box\n");
-			//dump(b);
-		}
-	}
-}
-
-void
 make_yfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
 {
     uint16_t tmp[3];
@@ -211,7 +194,7 @@ make_yfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
 void
 make_xfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
 {
-    uint16_t tmp[3];
+    uint16_t tmp[3] = {0, 0, 0};
 
     for (int x = 0; x < 3; x++) {
         for (int y = 0; y < 3; y++) {
@@ -225,18 +208,45 @@ make_xfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
     filter[2] = tmp[2] & ~tmp[0] & ~tmp[1];
 }
 
-/*
 void
-func_horizontal(struct board *b, int x_base, int y_base)
+scan(struct board *b)
 {
-	for (int y = 0; y < 3; y++) {
-		for (int x = 0; x < 3; x++) {
-			c = get_cell(b, x_base, y_base, x, y);
-			bitmap &= c->bitmap;
+	for (int y = 0; y < 9; y++) {
+		for (int x = 0; x < 9; x++) {
+			struct cell *c = get_cell(b, 0, 0, x, y);
+			unset_horizontal(b, c, y);
+			unset_vertical(b, c, x);
+			//printf("after v/h\n");
+			//dump(b);
+			unset_box(b, c, x, y);
+			//printf("after box\n");
+			//dump(b);
 		}
 	}
+
+    for (int y = 0; y < BOARD_BOX_NUMBER; y++) {
+        for (int x = 0; x < BOARD_BOX_NUMBER; x++) {
+            uint16_t filter[BOX_EDGE_LENGTH];
+            struct cell c;
+
+            make_xfilter(b, x, y, filter);
+
+            for (int x_offset = 0; x_offset < BOX_EDGE_LENGTH; x_offset++) {
+                printf("xfilter[%d] = %.8X\n", x * 3 + x_offset, filter[x_offset]);
+                c.bitmap = filter[x_offset];
+                unset_vertical(b, &c, x * 3 + x_offset);
+            }
+
+            make_yfilter(b, x, y, filter);
+
+            for (int y_offset = 0; y_offset < BOX_EDGE_LENGTH; y_offset++) {
+                printf("yfilter[%d] = %.8X\n", y * 3 + y_offset, filter[y_offset]);
+                c.bitmap = filter[y_offset];
+                unset_horizontal(b, &c, y * 3 + y_offset);
+            }
+        }
+    }
 }
-*/
 
 void
 unique_box(struct board *b, int x_base, int y_base)
@@ -319,7 +329,7 @@ static int test2[81] = {
     5, 0, 0, 9, 0, 3, 7, 0, 0
 };
 
-#define TEST    test2
+#define TEST    test1
 
 int
 main(int argc, char *argv[])
@@ -334,7 +344,7 @@ main(int argc, char *argv[])
 
 	dump(board);
 
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 4; i++) {
 		scan(board);
 		sweep(board);
 		printf("after sweep\n");
