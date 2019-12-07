@@ -203,7 +203,18 @@ sweep(struct board *b)
 	}
 }
 
-static int test[81] = {
+bool
+is_finished(struct board *b)
+{
+    for (int i = 0; i < 81; i++) {
+        if (b->cells[i].num == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static int test1[81] = {
 	0, 0, 2, 0, 6, 4, 0, 9, 0,
 	5, 0, 0, 0, 9, 0, 6, 0, 0,
 	0, 3, 0, 0, 0, 0, 0, 0, 7,
@@ -215,6 +226,20 @@ static int test[81] = {
 	0, 5, 0, 2, 1, 0, 9, 0, 0
 };
 
+static int test2[81] = {
+    0, 0, 1, 4, 0, 7, 0, 0, 2,
+    0, 0, 0, 0, 0, 0, 5, 7, 0,
+    0, 3, 0, 0, 0, 0, 4, 0, 9,
+    0, 6, 9, 0, 0, 2, 0, 0, 0,
+    4, 0, 7, 0, 0, 0, 1, 0, 5,
+    0, 0, 0, 7, 0, 0, 8, 2, 0,
+    1, 0, 4, 0, 0, 0, 0, 6, 0,
+    0, 9, 3, 0, 0, 0, 0, 0, 0,
+    5, 0, 0, 9, 0, 3, 7, 0, 0
+};
+
+#define TEST    test2
+
 int
 main(int argc, char *argv[])
 {
@@ -223,16 +248,20 @@ main(int argc, char *argv[])
 
 	for (int i = 0; i < 81; i++) {
 		cell_clear(&board->cells[i]);
-		cell_set(&board->cells[i], test[i]);
+		cell_set(&board->cells[i], TEST[i]);
 	}
 
 	dump(board);
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 10; i++) {
 		scan(board);
 		sweep(board);
 		printf("after sweep\n");
 		dump(board);
+        if (is_finished(board)) {
+            printf("%d iterations\n", i);
+            break;
+        }
 	}
 
 	free(board);
