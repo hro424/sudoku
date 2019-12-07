@@ -117,22 +117,14 @@ cell_eliminate(struct cell *lhs, struct cell *rhs)
 }
 
 static void
-eliminate_horizontal(struct board *bp, struct cell *cp, int y)
+eliminate_hv(struct board *bp, struct cell *cp, int x, int y)
 {
     if (cp->num > 0) {
-        for (int x = 0; x < BOARD_EDGE_CELLS; x++) {
-            struct cell *target = &bp->cs[x][y];
+        for (int i = 0; i < BOARD_EDGE_CELLS; i++) {
+            struct cell *target;
+            target = &bp->cs[x][i];
             cell_eliminate(target, cp);
-        }
-    }
-}
-
-static void
-eliminate_vertical(struct board *bp, struct cell *cp, int x)
-{
-    if (cp->num > 0) {
-        for (int y = 0; y < BOARD_EDGE_CELLS; y++) {
-            struct cell *target = &bp->cs[x][y];
+            target = &bp->cs[i][y];
             cell_eliminate(target, cp);
         }
     }
@@ -171,6 +163,7 @@ unique_box(struct board *bp, struct cell *cp, int box_x, int box_y,
             }
         }
 
+        // This cell can only hold the number.  The others cannot.
         if (numbits16(state) == 1) {
             cp->state = state;
         }
@@ -183,8 +176,7 @@ scanner(struct board *bp, int box_x, int box_y, int offset_x, int offset_y,
 {
     struct cell *c = &bp->cs[cell_x][cell_y];
 
-    eliminate_horizontal(bp, c, cell_y);
-    eliminate_vertical(bp, c, cell_x);
+    eliminate_hv(bp, c, cell_x, cell_y);
     eliminate_box(bp, c, box_x, box_y, offset_x, offset_y);
     unique_box(bp, c, box_x, box_y, offset_x, offset_y);
 }
@@ -249,7 +241,7 @@ static int test2[BOARD_SIZE] = {
     5, 0, 0, 9, 0, 3, 7, 0, 0
 };
 
-#define TEST    test2
+#define TEST    test1
 
 int
 main(int argc, char *argv[])
