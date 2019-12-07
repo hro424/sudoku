@@ -254,9 +254,11 @@ scan(struct board *b)
 void
 unique_box(struct board *b, int x_base, int y_base)
 {
+    // for each cell in a box
 	for (int y = 0; y < 3; y++) {
 		for (int x = 0; x < 3; x++) {
 			struct cell *current = get_cell(b, x_base, y_base, x, y);
+            // the cell is not finished.
 			if (current->num == 0) {
 				uint16_t bitmap = current->bitmap;
 				for (int j = 0; j < 3; j++) {
