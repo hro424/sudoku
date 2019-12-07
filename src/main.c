@@ -177,12 +177,12 @@ unset_box(struct board *b, struct cell *c, int x_axis, int y_axis)
 void
 make_yfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
 {
-    uint16_t tmp[3];
+    uint16_t tmp[3] = {0, 0, 0};
 
     for (int y = 0; y < 3; y++) {
-        for (int x = 0; x < 3; x++) {
+        for (int x = 1; x < 3; x++) {
             struct cell *c = get_cell(b, x_base, y_base, x, y);
-            tmp[y] &= c->bitmap;
+            tmp[y] |= c->bitmap;
         }
     }
 
@@ -199,7 +199,7 @@ make_xfilter(struct board *b, int x_base, int y_base, uint16_t *filter)
     for (int x = 0; x < 3; x++) {
         for (int y = 0; y < 3; y++) {
             struct cell *c = get_cell(b, x_base, y_base, x, y);
-            tmp[x] &= c->bitmap;
+            tmp[x] |= c->bitmap;
         }
     }
 
@@ -232,7 +232,7 @@ scan(struct board *b)
             make_xfilter(b, x, y, filter);
 
             for (int x_offset = 0; x_offset < BOX_EDGE_LENGTH; x_offset++) {
-                printf("xfilter[%d] = %.8X\n", x * 3 + x_offset, filter[x_offset]);
+                //printf("xfilter[%d] = %.8X\n", x * 3 + x_offset, filter[x_offset]);
                 c.bitmap = filter[x_offset];
                 unset_vertical(b, &c, x * 3 + x_offset);
             }
@@ -240,7 +240,7 @@ scan(struct board *b)
             make_yfilter(b, x, y, filter);
 
             for (int y_offset = 0; y_offset < BOX_EDGE_LENGTH; y_offset++) {
-                printf("yfilter[%d] = %.8X\n", y * 3 + y_offset, filter[y_offset]);
+                //printf("yfilter[%d, %d] = %.4X\n", x, y * 3 + y_offset, filter[y_offset]);
                 c.bitmap = filter[y_offset];
                 unset_horizontal(b, &c, y * 3 + y_offset);
             }
