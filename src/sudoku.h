@@ -24,6 +24,53 @@ struct cell {
     };
 };
 
+INLINE void
+cell_clear(struct cell *cp)
+{
+    cp->raw = 0;
+    cp->state = (1U << 9) - 1;
+}
+
+INLINE bool
+cell_is_finished(const struct cell *cp)
+{
+    return (0 < cp->num);
+}
+
+INLINE void
+cell_set(struct cell *cp, unsigned int num)
+{
+    cp->state = 1U << (num - 1);
+    cp->num = num;
+}
+
+INLINE size_t
+numbits16(uint16_t bitmap)
+{
+    size_t num = 0;
+    for (int i = 0; i < 16; i++) {
+        num += (bitmap >> i) & 1U;
+    }
+    return num;
+}
+
+INLINE size_t
+cell_count(const struct cell *cp)
+{
+    return numbits16(cp->state);
+}
+
+INLINE void
+cell_autoset(struct cell *cp)
+{
+    for (int i = 0; i < 9; i++) {
+        if ((cp->state >> i) & 1) {
+            cp->num = i + 1;
+            break;
+        }
+    }
+}
+
 struct box {
     struct cell *cs[BOX_EDGE_CELLS][BOX_EDGE_CELLS];
 };
@@ -33,17 +80,9 @@ struct board {
     struct box bs[BOARD_EDGE_BOXES][BOARD_EDGE_BOXES];
 };
 
-#define SEL(base, offset)   ((base) * 3 + (offset))
-
-void cell_init(struct cell *cp, int num);
-void cell_set(struct cell *cp, int num);
-size_t cell_count(struct cell *cp);
-
 void board_init(struct board *bp, int *data);
-void board_scan(struct board *bp);
-void board_sweep(struct board *bp);
-void board_dump(struct board *bp);
-bool board_is_finished(struct board *bp);
+void board_dump(const struct board *bp);
+bool board_solve(struct board *bp);
 
 #endif /* SUDOKU_SUDOKU_H */
 

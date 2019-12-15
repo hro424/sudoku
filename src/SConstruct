@@ -1,1 +1,2 @@
-Program('sudoku.c')
+env = Environment(CCFLAGS = '-Wall -O2')
+env.Program('sudoku', ['sudoku.c'])

@@ -1,67 +1,36 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "sudoku.h"
 
-void
-cell_clear(struct cell *cp)
+INLINE size_t
+box_select(size_t base, size_t offset)
 {
-    cp->raw = 0;
-    cp->state = (1U << 9) - 1;
+    return base * BOX_EDGE_CELLS + offset;
 }
 
-void
-cell_set(struct cell *cp, int num)
-{
-    if (num > 0) {
-        cp->state = 1U << (num - 1);
-        cp->num = num;
-    }
-}
-
-static size_t
-numbits16(uint16_t bitmap)
-{
-    size_t num = 0;
-    for (int i = 0; i < 16; i++) {
-        num += (bitmap >> i) & 1U;
-    }
-    return num;
-}
-
-size_t
-cell_count(struct cell *cp)
-{
-    return numbits16(cp->state);
-}
-
-void
-cell_autoset(struct cell *cp)
-{
-    for (int i = 0; i < 9; i++) {
-        if ((cp->state >> i) & 1) {
-            cp->num = i + 1;
-            break;
-        }
-    }
-}
-
-static void
+static bool
 board_iterator(struct board *bp,
-               void (*func)(struct board *bp, int x_base, int y_base,
-                            int x_offset, int y_offset,
-                            int cell_x, int cell_y))
+               bool (*func)(struct board *bp,
+                            size_t x_base, size_t y_base,
+                            size_t x_offset, size_t y_offset,
+                            size_t cell_x, size_t cell_y))
 {
-    for (int yb = 0; yb < BOARD_EDGE_BOXES; yb++) {
-        for (int xb = 0; xb < BOARD_EDGE_BOXES; xb++) {
-            for (int yo = 0; yo < BOX_EDGE_CELLS; yo++) {
-                for (int xo = 0; xo < BOX_EDGE_CELLS; xo++) {
-                    int cx = SEL(xb, xo);
-                    int cy = SEL(yb, yo);
-                    func(bp, xb, yb, xo, yo, cx, cy);
+    for (size_t yb = 0; yb < BOARD_EDGE_BOXES; yb++) {
+        for (size_t xb = 0; xb < BOARD_EDGE_BOXES; xb++) {
+            for (size_t yo = 0; yo < BOX_EDGE_CELLS; yo++) {
+                for (size_t xo = 0; xo < BOX_EDGE_CELLS; xo++) {
+                    size_t cx = box_select(xb, xo);
+                    size_t cy = box_select(yb, yo);
+                    if (!func(bp, xb, yb, xo, yo, cx, cy)) {
+                        return false;
+                    }
                 }
             }
         }
     }
+
+    return true;
 }
 
 void
@@ -71,9 +40,9 @@ board_init(struct board *bp, int *data)
         for (int x = 0; x < BOARD_EDGE_BOXES; x++) {
             for (int offset_y = 0; offset_y < BOX_EDGE_CELLS; offset_y++) {
                 for (int offset_x = 0; offset_x < BOX_EDGE_CELLS; offset_x++) {
-                    int xi = SEL(x, offset_x);
-                    int yi = SEL(y, offset_y);
-                    int num = data[xi + yi * 9];
+                    int xi = box_select(x, offset_x);
+                    int yi = box_select(y, offset_y);
+                    size_t num = data[xi + yi * 9];
 
                     //printf("%d %d %d %d %d\n", x, y, offset_x, offset_y, num);
                     cell_clear(&bp->cs[xi][yi]);
@@ -89,7 +58,7 @@ board_init(struct board *bp, int *data)
 }
 
 void
-board_dump(struct board *bp)
+board_dump(const struct board *bp)
 {
     for (int y = 0; y < BOARD_EDGE_CELLS; y++) {
         for (int x = 0; x < BOARD_EDGE_CELLS; x++) {
@@ -108,125 +77,247 @@ board_dump(struct board *bp)
  * Eliminates the numbers in the cell on the left hand side
  * with that on the right hand side.
  */
-static void
-cell_eliminate(struct cell *lhs, struct cell *rhs)
+static bool
+cell_eliminate(struct cell *lhs, const struct cell *rhs)
 {
-    if (lhs != rhs) {
-        lhs->state &= ~rhs->state;
-    }
+    lhs->state &= ~rhs->state;
+
+    return lhs->state > 0;
 }
 
-static void
-eliminate_hv(struct board *bp, struct cell *cp, int x, int y)
+/**
+ * Eliminates the number of the finished cell.
+ * NOTE: Apply only on the finished cell.
+ */
+static bool
+eliminate_hv(struct board *bp, struct cell *cp, size_t x, size_t y)
 {
-    if (cp->num > 0) {
-        for (int i = 0; i < BOARD_EDGE_CELLS; i++) {
-            struct cell *target;
+    bool result = true;
+
+    // Eliminate the number in the other cells.
+    for (size_t i = 0; i < BOARD_EDGE_CELLS; i++) {
+        struct cell *target;
+
+        if (i != y) {
             target = &bp->cs[x][i];
-            cell_eliminate(target, cp);
-            target = &bp->cs[i][y];
-            cell_eliminate(target, cp);
+            if (!cell_eliminate(target, cp)) {
+                result = false;
+                break;
+            }
         }
-    }
-}
 
-static void
-eliminate_box(struct board *bp, struct cell *cp,
-              int box_x, int box_y, int offset_x, int offset_y)
-{
-    // The given cell is finished.
-    // Eliminates the number of the cell in the others.
-    if (cp->num > 0) {
-        for (int y = 0; y < BOX_EDGE_CELLS; y++) {
-            for (int x = 0; x < BOX_EDGE_CELLS; x++) {
-                struct cell *target = bp->bs[box_x][box_y].cs[x][y];
-                cell_eliminate(target, cp);
+        if (i != x) {
+            target = &bp->cs[i][y];
+            if (!cell_eliminate(target, cp)) {
+                result = false;
+                break;
             }
         }
     }
+
+    return result;
 }
 
-void
-unique_box(struct board *bp, struct cell *cp, int box_x, int box_y,
-           int offset_x, int offset_y)
+/**
+ * Eliminates the number of the finished cell.
+ * NOTE: Apply only on the finished cell.
+ */
+static bool
+eliminate_box(struct board *bp, struct cell *cp,
+              size_t box_x, size_t box_y,
+              size_t offset_x, size_t offset_y)
 {
-    // Not finished
-    if (cp->num == 0) {
-        uint16_t state = cp->state;
+    bool result = true;
 
-        // scan the others and figure out unique numbers
-        for (int y = 0; y < BOX_EDGE_CELLS; y++) {
-            for (int x = 0; x < BOX_EDGE_CELLS; x++) {
-                if (!(x == offset_x && y == offset_y)) {
-                    state &= ~bp->bs[box_x][box_y].cs[x][y]->state;
+    for (size_t y = 0; y < BOX_EDGE_CELLS; y++) {
+        for (size_t x = 0; x < BOX_EDGE_CELLS; x++) {
+            if (!(x == offset_x && y == offset_y)) {
+                struct cell *target = bp->bs[box_x][box_y].cs[x][y];
+                if (!cell_eliminate(target, cp)) {
+                    result = false;
+                    break;
                 }
             }
         }
+    }
 
-        // This cell can only hold the number.  The others cannot.
-        if (numbits16(state) == 1) {
-            cp->state = state;
+    return result;
+}
+
+/**
+ * NOTE: Apply only on the undermined cell.
+ *
+ * @param bp        the board
+ * @param cp        the current cell
+ * @param box_x     the position of the box in the board
+ * @param box_y     the position of the box in the board
+ * @param offset_x  the position of the cell on the board
+ * @param offset_y  the position of the cell on ther board
+ */
+static void
+unique_box(struct board *bp, struct cell *cp,
+           size_t box_x, size_t box_y,
+           size_t offset_x, size_t offset_y)
+{
+    uint16_t state = cp->state;
+
+    // scan the others and figure out unique numbers
+    for (size_t y = 0; y < BOX_EDGE_CELLS; y++) {
+        for (size_t x = 0; x < BOX_EDGE_CELLS; x++) {
+            // Except for myself
+            if (!(x == offset_x && y == offset_y)) {
+                state &= ~bp->bs[box_x][box_y].cs[x][y]->state;
+            }
         }
+    }
+
+    // No one but this cell can hold the number.
+    // Finishing this cell on sweep.
+    if (numbits16(state) == 1) {
+        cp->state = state;
     }
 }
 
-static void
-scanner(struct board *bp, int box_x, int box_y, int offset_x, int offset_y,
-        int cell_x, int cell_y)
+static bool
+scanner(struct board *bp, size_t box_x, size_t box_y,
+        size_t offset_x, size_t offset_y,
+        size_t cell_x, size_t cell_y)
 {
+    bool result = false;
     struct cell *c = &bp->cs[cell_x][cell_y];
 
-    eliminate_hv(bp, c, cell_x, cell_y);
-    eliminate_box(bp, c, box_x, box_y, offset_x, offset_y);
-    unique_box(bp, c, box_x, box_y, offset_x, offset_y);
+    if (cell_is_finished(c)) {
+        if (eliminate_hv(bp, c, cell_x, cell_y) &&
+            eliminate_box(bp, c, box_x, box_y, offset_x, offset_y)) {
+            result = true;
+        }
+    }
+    else {
+        unique_box(bp, c, box_x, box_y, offset_x, offset_y);
+        result = true;
+    }
+
+    return result;
 }
 
 
-void
+static bool
 board_scan(struct board *bp)
 {
-    board_iterator(bp, scanner);
+    return board_iterator(bp, scanner);
 }
 
-static void
-sweeper(struct board *bp, int box_x, int box_y, int offset_x, int offset_y,
-        int cell_x, int cell_y)
+static bool
+sweeper(struct board *bp, size_t box_x, size_t box_y,
+        size_t offset_x, size_t offset_y,
+        size_t cell_x, size_t cell_y)
 {
     struct cell *c = &bp->cs[cell_x][cell_y];
     if (c->num == 0 && cell_count(c) == 1) {
         cell_autoset(c);
     }
-}
-
-void
-board_sweep(struct board *bp)
-{
-    board_iterator(bp, sweeper);
-}
-
-bool
-board_is_finished(struct board *bp)
-{
-    for (int y = 0; y < BOARD_EDGE_CELLS; y++) {
-        for (int x = 0; x < BOARD_EDGE_CELLS; x++) {
-            if (bp->cs[x][y].num == 0) {
-                return false;
-            }
-        }
-    }
     return true;
 }
 
+static bool
+board_sweep(struct board *bp)
+{
+    return board_iterator(bp, sweeper);
+}
+
+struct cell *
+board_get_undetermined(struct board *bp)
+{
+    for (size_t y = 0; y < BOARD_EDGE_CELLS; y++) {
+        for (size_t x = 0; x < BOARD_EDGE_CELLS; x++) {
+            struct cell *cp = &bp->cs[x][y];
+            if (cp->num == 0) {
+                return cp;
+            }
+        }
+    }
+    return NULL;
+}
+
+static bool
+board_is_finished(const struct board *bp)
+{
+    return board_get_undetermined((struct board *)bp) == NULL;
+}
+
+static bool
+board_is_inprogress(const struct board *lhs, const struct board *rhs)
+{
+    bool result = false;
+    for (size_t i = 0; i < BOARD_EDGE_CELLS; i++) {
+        if (memcmp(lhs->cs[i], rhs->cs[i], sizeof(struct cell) * BOARD_EDGE_CELLS) != 0) {
+            result = true;
+            break;
+        }
+    }
+    return result;
+}
+
+static void
+board_copy(struct board *dest, const struct board *src)
+{
+    for (size_t i = 0; i < BOARD_EDGE_CELLS; i++) {
+        memcpy(dest->cs[i], src->cs[i], sizeof(struct cell) * BOARD_EDGE_CELLS);
+    }
+}
+
+bool
+board_solve(struct board *bp)
+{
+    bool result = true;
+    struct board *backup = malloc(sizeof(struct board));
+    if (backup == NULL) {
+        return false;
+    }
+
+    do {
+        board_copy(backup, bp);
+
+        if (!board_scan(bp) || !board_sweep(bp)) {
+            result = false;
+            goto exit;
+        }
+
+        //board_dump(bp);
+    } while (board_is_inprogress(bp, backup));
+
+    if (!board_is_finished(bp)) {
+        struct cell *cp = board_get_undetermined(bp);
+
+        for (size_t i = 0; i < 9; i++) {
+            if (cp->state & (1 << i)) {
+                cell_set(cp, i + 1);
+                result = board_solve(bp);
+                if (result) {
+                    break;
+                }
+                else {
+                    board_copy(bp, backup);
+                }
+            }
+        }
+    }
+
+exit:
+    free(backup);
+    return result;
+}
+
 static int test1[BOARD_SIZE] = {
-	0, 0, 2, 0, 6, 4, 0, 9, 0,
-	5, 0, 0, 0, 9, 0, 6, 0, 0,
-	0, 3, 0, 0, 0, 0, 0, 0, 7,
-	1, 0, 0, 0, 3, 0, 0, 0, 0,
-	3, 8, 0, 9, 0, 6, 0, 4, 1,
-	0, 0, 0, 0, 7, 0, 0, 0, 2,
-	2, 0, 0, 0, 0, 0, 0, 3, 0,
-	0, 0, 3, 0, 5, 0, 0, 0, 6,
-	0, 5, 0, 2, 1, 0, 9, 0, 0
+    0, 0, 2, 0, 6, 4, 0, 9, 0,
+    5, 0, 0, 0, 9, 0, 6, 0, 0,
+    0, 3, 0, 0, 0, 0, 0, 0, 7,
+    1, 0, 0, 0, 3, 0, 0, 0, 0,
+    3, 8, 0, 9, 0, 6, 0, 4, 1,
+    0, 0, 0, 0, 7, 0, 0, 0, 2,
+    2, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 3, 0, 5, 0, 0, 0, 6,
+    0, 5, 0, 2, 1, 0, 9, 0, 0
 };
 
 static int test2[BOARD_SIZE] = {
@@ -243,6 +334,7 @@ static int test2[BOARD_SIZE] = {
 
 #define TEST    test1
 
+
 int
 main(int argc, char *argv[])
 {
@@ -250,16 +342,9 @@ main(int argc, char *argv[])
 
     board_init(&b, TEST);
     board_dump(&b);
-
-    for (int i = 0; i < 16; i++) {
-        board_scan(&b);
-        board_sweep(&b);
-        board_dump(&b);
-        if (board_is_finished(&b)) {
-            printf("%d iterations.\n", i);
-            break;
-        }
-    }
+    board_solve(&b);
+    board_dump(&b);
 
     return EXIT_SUCCESS;
 }
+
