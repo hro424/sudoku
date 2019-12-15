@@ -36,15 +36,14 @@ board_iterator(struct board *bp,
 void
 board_init(struct board *bp, int *data)
 {
-    for (int y = 0; y < BOARD_EDGE_BOXES; y++) {
-        for (int x = 0; x < BOARD_EDGE_BOXES; x++) {
-            for (int offset_y = 0; offset_y < BOX_EDGE_CELLS; offset_y++) {
-                for (int offset_x = 0; offset_x < BOX_EDGE_CELLS; offset_x++) {
-                    int xi = box_select(x, offset_x);
-                    int yi = box_select(y, offset_y);
+    for (size_t y = 0; y < BOARD_EDGE_BOXES; y++) {
+        for (size_t x = 0; x < BOARD_EDGE_BOXES; x++) {
+            for (size_t offset_y = 0; offset_y < BOX_EDGE_CELLS; offset_y++) {
+                for (size_t offset_x = 0; offset_x < BOX_EDGE_CELLS; offset_x++) {
+                    size_t xi = box_select(x, offset_x);
+                    size_t yi = box_select(y, offset_y);
                     size_t num = data[xi + yi * 9];
 
-                    //printf("%d %d %d %d %d\n", x, y, offset_x, offset_y, num);
                     cell_clear(&bp->cs[xi][yi]);
                     if (num > 0) {
                         cell_set(&bp->cs[xi][yi], num);
@@ -60,12 +59,12 @@ board_init(struct board *bp, int *data)
 void
 board_dump(const struct board *bp)
 {
-    for (int y = 0; y < BOARD_EDGE_CELLS; y++) {
-        for (int x = 0; x < BOARD_EDGE_CELLS; x++) {
+    for (size_t y = 0; y < BOARD_EDGE_CELLS; y++) {
+        for (size_t x = 0; x < BOARD_EDGE_CELLS; x++) {
             printf("%d ", bp->cs[x][y].num);
         }
         printf("\t");
-        for (int x = 0; x < BOARD_EDGE_CELLS; x++) {
+        for (size_t x = 0; x < BOARD_EDGE_CELLS; x++) {
             printf("%.3X ", bp->cs[x][y].state);
         }
         printf("\n");
@@ -77,7 +76,7 @@ board_dump(const struct board *bp)
  * Eliminates the numbers in the cell on the left hand side
  * with that on the right hand side.
  */
-static bool
+INLINE bool
 cell_eliminate(struct cell *lhs, const struct cell *rhs)
 {
     lhs->state &= ~rhs->state;
@@ -201,7 +200,7 @@ scanner(struct board *bp, size_t box_x, size_t box_y,
 }
 
 
-static bool
+INLINE bool
 board_scan(struct board *bp)
 {
     return board_iterator(bp, scanner);
@@ -219,7 +218,7 @@ sweeper(struct board *bp, size_t box_x, size_t box_y,
     return true;
 }
 
-static bool
+INLINE bool
 board_sweep(struct board *bp)
 {
     return board_iterator(bp, sweeper);
@@ -239,7 +238,7 @@ board_get_undetermined(struct board *bp)
     return NULL;
 }
 
-static bool
+INLINE bool
 board_is_finished(const struct board *bp)
 {
     return board_get_undetermined((struct board *)bp) == NULL;
