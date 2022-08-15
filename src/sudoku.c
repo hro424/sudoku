@@ -59,17 +59,29 @@ board_init(struct board *bp, int *data)
 void
 board_dump(const struct board *bp)
 {
-    for (size_t y = 0; y < BOARD_EDGE_CELLS; y++) {
-        for (size_t x = 0; x < BOARD_EDGE_CELLS; x++) {
-            printf("%d ", bp->cs[x][y].num);
+    for (size_t y = 0; y < BOARD_EDGE_BOXES; y++) {
+        printf("+-------+-------+-------+\t"
+               "+-------------+-------------+-------------+\n");
+        for (size_t yy = 0; yy < BOX_EDGE_CELLS; yy++) {
+            size_t yyy = y * BOX_EDGE_CELLS + yy;
+            for (size_t x = 0; x < BOARD_EDGE_BOXES; x++) {
+                printf("| ");
+                for (size_t xx = 0; xx < BOX_EDGE_CELLS; xx++) {
+                    printf("%d ", bp->cs[x * BOX_EDGE_CELLS + xx][yyy].num);
+                }
+            }
+            printf("|\t");
+            for (size_t x = 0; x < BOARD_EDGE_BOXES; x++) {
+                printf("| ");
+                for (size_t xx = 0; xx < BOX_EDGE_CELLS; xx++) {
+                    printf("%.3X ", bp->cs[x * BOX_EDGE_CELLS + xx][yyy].state);
+                }
+            }
+            printf("|\n");
         }
-        printf("\t");
-        for (size_t x = 0; x < BOARD_EDGE_CELLS; x++) {
-            printf("%.3X ", bp->cs[x][y].state);
-        }
-        printf("\n");
     }
-    printf("\n");
+    printf("+-------+-------+-------+\t"
+           "+-------------+-------------+-------------+\n\n");
 }
 
 /**
